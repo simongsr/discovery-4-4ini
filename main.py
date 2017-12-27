@@ -1,16 +1,9 @@
 #!/usr/bin/env python3
 import json
-import random;
-
 import multiprocessing
-
-random.seed()
+import random; random.seed()
 import socket
 import threading
-import traceback
-from http.server import BaseHTTPRequestHandler, HTTPServer
-
-import functools
 
 import atexit
 
@@ -28,28 +21,6 @@ __author__ = "Simone Pandolfi <simopandolfi@gmail.com>"
 __version__ = (1, 0, 0)
 
 
-# def synchronized(cls):
-#     class SynchronizedClass:
-#         def __init__(self, *args, **kwargs):
-#             self.wrapped_obj = cls(*args, **kwargs)
-#             self.__lock = threading.Lock()
-#
-#         def __getattr__(self, item):
-#             obj = getattr(type(self.wrapped_obj), item)
-#             if callable(obj) and not isinstance(obj, property):
-#                 def hook(*args, **kwargs):
-#                     self.__lock.acquire()
-#                     result = obj(self.wrapped_obj, *args, **kwargs)
-#                     self.__lock.release()
-#                     return result if result != self.wrapped_obj else self
-#                 return hook
-#             self.__lock.acquire()
-#             result = self.wrapped_obj.__getattribute__(item)
-#             self.__lock.release()
-#             return result if result != self.wrapped_obj else self
-#     return SynchronizedClass
-
-
 def get_localhost_external_ipaddress():
     s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     s.connect(("8.8.8.8", 80))
@@ -59,7 +30,6 @@ def get_localhost_external_ipaddress():
 
 
 @singleton
-# @synchronized
 class Repository:
     def __init__(self, localhost_info):
         self.__addr = get_localhost_external_ipaddress()
@@ -135,10 +105,13 @@ def check_httpd_startup():
 
 
 def send_broadcast(data):
+    packet = json.dumps(data).encode('utf-8')
+    if len(packet) > settings.UDP_PACKET_MAX_SIZE:
+        raise MemoryError('UDP packet exceded max size: {0} > {1}'.format(len(packet), settings.UDP_PACKET_MAX_SIZE))
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     sock.setsockopt(socket.IPPROTO_IP, socket.IP_MULTICAST_TTL, settings.UDP_TTL)
     sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
-    sock.sendto(json.dumps(data).encode('utf-8'), ('<broadcast>', settings.UDP_PORT))
+    sock.sendto(packet, ('<broadcast>', settings.UDP_PORT))
     sock.close()
 
 
@@ -175,7 +148,7 @@ def manage_scream(sock, repository, validation_func):
                 update_network(repository.info)
 
     while True:
-        payload, host = sock.recvfrom(2048)  # TODO gestire i messaggi più lunghi di 2048 byte
+        payload, host = sock.recvfrom(settings.UDP_PACKET_MAX_SIZE)
         host, pid = host
         payload = json.loads(payload.decode('utf-8', 'replace'))
         if host not in ('127.0.0.1', repository.addr) and validation_func(payload):
