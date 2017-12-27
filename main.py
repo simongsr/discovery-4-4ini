@@ -177,6 +177,7 @@ def manage_scream(sock, repository, validation_func):
     while True:
         payload, host = sock.recvfrom(2048)  # TODO gestire i messaggi più lunghi di 2048 byte
         host, pid = host
+        payload = json.loads(payload.decode('utf-8', 'replace'))
         if host not in ('127.0.0.1', repository.addr) and validation_func(payload):
             # updates new entered host
             response = requests.post('http://{host}:{port}/api/info'.format(host=host, port=settings.HTTP_PORT),
